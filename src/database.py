@@ -4,16 +4,16 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from odmantic import AIOEngine
 from odmantic.session import AIOSession
 
-from src.config import Settings
+from src.config import settings
 
-client = AsyncIOMotorClient(Settings.DATABASE_URL)
-engine = AIOEngine(client=client, database=Settings.DATABASE_NAME)
+client = AsyncIOMotorClient(settings.DATABASE_URL)
+engine = AIOEngine(client=client, database=settings.DATABASE_NAME)
 
 
 async def get_session() -> AsyncGenerator[AIOSession]:
     session: AIOSession = engine.session()
-    await session.start()
     try:
+        await session.start()
         yield session
     except Exception as exp:
         raise exp

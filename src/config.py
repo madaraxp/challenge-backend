@@ -6,3 +6,6 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
     DATABASE_NAME: str
+
+
+settings = Settings()
