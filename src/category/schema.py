@@ -17,5 +17,5 @@ class CategoryUpdate(BaseModel):
     description: str | None = None
 
 
-class CategoryResponse(BaseModel):
+class CategoryResponse(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
