@@ -18,4 +18,5 @@ class CategoryUpdate(BaseModel):
 
 
 class CategoryResponse(CategoryBase):
+    id: ObjectId
     model_config = ConfigDict(from_attributes=True)
