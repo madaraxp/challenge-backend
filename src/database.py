@@ -11,11 +11,5 @@ engine = AIOEngine(client=client, database=settings.DATABASE_NAME)
 
 
 async def get_session() -> AsyncGenerator[AIOSession]:
-    session: AIOSession = engine.session()
-    try:
-        await session.start()
+    async with engine.session() as session:
         yield session
-    except Exception as exp:
-        raise exp
-    finally:
-        await session.end()
