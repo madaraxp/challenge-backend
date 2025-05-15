@@ -1,117 +1,108 @@
-from functools import partial
-from unittest.mock import AsyncMock
-
 import pytest
-import pytest_asyncio
-from mongomock_motor import AsyncMongoMockClient
-from odmantic import AIOEngine, ObjectId
-
-import src.category.service as category_service
-from src.category.models import Category
-from src.category.schema import CategoryCreate, CategoryUpdate
-
-
-@pytest_asyncio.fixture
-async def test_db():
-    client = AsyncMongoMockClient()
-    engine = AIOEngine(client=client, database='test_db')
-
-    mock_session = AsyncMock(spec=engine)
-    mock_session.save = AsyncMock(side_effect=partial(engine._save, session=None))
-    mock_session.find = AsyncMock(side_effect=partial(engine.find))
-    mock_session.find_one = AsyncMock(side_effect=partial(engine.find_one))
-    mock_session.delete = AsyncMock(side_effect=partial(engine.delete))
-
-    return mock_session
-
-
-@pytest_asyncio.fixture
-async def insert_category(test_db):
-    category = Category(
-        id=ObjectId(),
-        title='Test Category',
-        description='Test Description',
-        owner_id=ObjectId(),
-    )
-    await test_db.save(category)
-    return category
+from fastapi import status
+from odmantic import ObjectId
 
 
 @pytest.mark.asyncio
-async def test_get_all_categories(test_db, insert_category):
-    response = await category_service.get_categories(test_db)
+async def test_get_all_categories(client):
+    response = await client.get('/category/')
 
-    assert [cat async for cat in response] == [insert_category]
-
-
-@pytest.mark.asyncio
-async def test_get_category(test_db, insert_category):
-    response = await category_service.get_category_by_id(test_db, insert_category.id)
-
-    assert response == insert_category
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
 
 
 @pytest.mark.asyncio
-async def test_create_category(test_db):
-    category = CategoryCreate(
-        title='Test Create',
-        description='Test Create',
-        owner_id=ObjectId(),
-    )
+async def test_get_all_categories_with_categories(client, inserted_category):
+    response = await client.get('/category/')
 
-    response = await category_service.create_category(test_db, category)
-
-    assert response.title == category.title
-    assert response.description == category.description
-    assert response.owner_id == category.owner_id
-    test_db.save.assert_called_once()
+    assert response.status_code == status.HTTP_200_OK
+    expected_response = [
+        {
+            'id': str(inserted_category.id),
+            'title': inserted_category.title,
+            'description': inserted_category.description,
+            'owner_id': str(inserted_category.owner_id),
+        }
+    ]
+    assert response.json() == expected_response
 
 
 @pytest.mark.asyncio
-async def test_get_update_category(test_db, insert_category):
-    category_update = CategoryUpdate(
-        title='Test Category Update', description='Test Category Description'
+async def test_get_category(client, inserted_category):
+    response = await client.get(f'/category/{inserted_category.id}')
+
+    expected_response = {
+        'id': str(inserted_category.id),
+        'title': inserted_category.title,
+        'description': inserted_category.description,
+        'owner_id': str(inserted_category.owner_id),
+    }
+    assert response.json() == expected_response
+
+
+@pytest.mark.asyncio
+async def test_create_category(client):
+    create_category_payload = {
+        'title': 'Test Create',
+        'description': 'Test Create',
+        'owner_id': str(ObjectId()),
+    }
+
+    response = await client.post('/category/', json=create_category_payload)
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()['title'] == create_category_payload['title']
+    assert response.json()['description'] == create_category_payload['description']
+    assert response.json()['owner_id'] == create_category_payload['owner_id']
+
+
+@pytest.mark.asyncio
+async def test_get_update_category(client, inserted_category):
+    category_update = {
+        'title': 'Test Category Update',
+        'description': 'Test Category Description',
+    }
+
+    response = await client.put(
+        f'/category/{inserted_category.id}', json=category_update
     )
 
-    await category_service.update_category(test_db, category_update, insert_category.id)
-
-    result = await test_db.find_one(Category, Category.id == insert_category.id)
-    assert result.title == category_update.title
-    assert result.description == category_update.description
-
-
-@pytest.mark.asyncio
-async def test_get_update_category_exception(test_db):
-    category_update = CategoryUpdate(
-        title='Test Category Update', description='Test Category Description'
-    )
-    category_id = ObjectId()
-    test_db.find_one = AsyncMock(return_value=None)
-
-    with pytest.raises(Exception, match='category not found'):
-        await category_service.update_category(test_db, category_update, category_id)
-
-    test_db.find_one.assert_called_once_with(Category, Category.id == category_id)
-    test_db.save.assert_not_called()
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['id'] == str(inserted_category.id)
+    assert response.json()['title'] == category_update['title']
+    assert response.json()['description'] == category_update['description']
+    assert response.json()['owner_id'] == str(inserted_category.owner_id)
 
 
 @pytest.mark.asyncio
-async def test_get_delete_category(test_db, insert_category):
-    response = await category_service.delete_category(test_db, insert_category.id)
-
-    assert response == insert_category
-    test_db.find_one.assert_called_once_with(
-        Category, Category.id == insert_category.id
-    )
-    test_db.delete.assert_called_once_with(insert_category)
-
-
-@pytest.mark.asyncio
-async def test_get_delete_category_exception(test_db):
+async def test_get_update_category_exception(client):
+    category_update = {
+        'title': 'Test Category Update',
+        'description': 'Test Category Description',
+    }
     category_id = ObjectId()
 
-    with pytest.raises(Exception, match='category not found'):
-        await category_service.delete_category(test_db, category_id)
+    response = await client.put(f'/category/{category_id}', json=category_update)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json() == {'detail': 'category not found'}
 
-    test_db.find_one.assert_called_once_with(Category, Category.id == category_id)
-    test_db.delete.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_get_delete_category(client, inserted_category):
+    response = await client.delete(
+        f'/category/{inserted_category.id}',
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_get_delete_category_exception(client):
+    category_id = ObjectId()
+
+    response = await client.delete(
+        f'/category/{category_id}',
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json() == {'detail': 'category not found'}

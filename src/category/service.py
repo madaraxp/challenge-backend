@@ -1,3 +1,4 @@
+from fastapi import HTTPException, status
 from odmantic import ObjectId
 from odmantic.session import AIOSession
 
@@ -22,14 +23,17 @@ async def update_category(
 ) -> Category | None:
     actual_model = await db.find_one(Category, Category.id == id)
     if not actual_model:
-        raise Exception('category not found')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='category not found'
+        )
     actual_model.model_update(schema_update)
     return await db.save(actual_model)
 
 
-async def delete_category(db: AIOSession, id: ObjectId) -> Category | None:
+async def delete_category(db: AIOSession, id: ObjectId) -> None:
     actual_model = await db.find_one(Category, Category.id == id)
     if not actual_model:
-        raise Exception('category not found')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail='category not found'
+        )
     await db.delete(actual_model)
-    return actual_model
