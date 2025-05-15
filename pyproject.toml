@@ -15,6 +15,7 @@ dependencies = [
     "testcontainers (>=4.10.0,<5.0.0)",
     "async-asgi-testclient (>=1.4.11,<2.0.0)",
 ]
+packages = [{include = "src"}]
 
 
 [build-system]
@@ -52,3 +53,6 @@ env = [
     "DATABASE_NAME=test_db",
 ]
 asyncio_mode = "auto"
+
+[tool.poetry]
+packages = [{include = "src"}]
